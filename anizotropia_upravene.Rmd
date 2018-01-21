@@ -1,0 +1,96 @@
+---
+title: "Fluidita bunkových membrán"
+output:
+  html_document:
+    df_print: paged
+---
+
+##Anizotropia fluorescencie
+
+Na ohodnotenie membránovej fluidity sa pou¾íva metóda merania anizotropie fluorescencie. Do suspenzie buniek sa pridá roztok fluorescenènej sondy, ktorá sa zabuduje do membrány. Po o¾iarení polarizovaným svetlom dôjde k emisii, ktorá je taktie¾ polarizovaná, za predpokladu, ¾e sonda sa v membráne nemô¾e hýba». V prípade, ¾e má sonda voµnos» pohybu jej emisia je èiastoène polarizovaná a z miery jej depolarizácie je mo¾né detegova» zmeny vo fluidite membrány. V na¹om experimente sme sledovali vplyv delécie génu na membránovú fluiditu kvasiniek.
+
+##Dáta
+
+```{r}
+library(tidyverse)
+```
+
+Dáta z experimentu sú v repozitári R-course na GitHube.
+```{r}
+library(readr)
+anizotropie <- read_delim("https://raw.githubusercontent.com/MatusKamenicky/R-course/master/anizotropie.csv", 
+    ";", escape_double = FALSE, col_types = cols(Skupina = col_character()), 
+    trim_ws = TRUE)
+View(anizotropie)
+```
+
+Nepáèia sa mi divné znaky v hlavièke ståpcov, tak ich nahradím nieèim rozumným
+```{r}
+names(anizotropie)[1] <- "Datum"
+names(anizotropie)[9] <- "Teplota"
+head(anizotropie)
+```
+
+Aby pôsobili dáta príjemnej¹ie, zbavím sa prázdnych ståpcov a riadkov
+```{r}
+anizotropie <- filter(anizotropie, Anizotropia > 0.0)
+anizotropie <- anizotropie[,-11]
+View(anizotropie)
+```
+
+
+## G Faktor
+
+V experimente boli pou¾ité kvasinky s deléciou génu ERG, ako kontrola boli pou¾ité bunky KU80
+```{r}
+anizotropie$Skupina = as.factor(anizotropie$Skupina)
+anizotropie$Skupina = relevel(anizotropie$Skupina, ref = "KU80-DPH")
+head(anizotropie)
+```
+
+Pri meraní anizotropie sa porovnáva vertikálna a horizontálna polarizácia ¾iarenia, keï¾e v¹ak prístroje prepú¹»ajú v rôznych smeroch ¾iarenie s rôznou intenzitou, musí sa pri meraní zohµadni» G faktor. V experimente je dôle¾ité, aby G faktor neovplyvòoval meranie anizotropie.
+```{r}
+ggplot(data = anizotropie) +
+  geom_point(mapping = aes(x = GFaktor, y = Anizotropia, colour = Skupina)) 
+```
+
+Z obrázku sa zdá, èe medzi anizotropiou a G faktorom nie je závislos» ani v jedenj skupine. Pozrime sa e¹te, èo nám o tom povie lineárny model.
+```{r}
+kontrola <- filter(anizotropie, Skupina == "KU80-DPH")
+kontrola_fit <- lm(Anizotropia ~ GFaktor, data = kontrola)
+summary(kontrola_fit)
+plot(kontrola_fit)
+
+```
+```{r}
+deletanti <- filter(anizotropie, Skupina == "delERG6-DPH")
+deletanti_fit <- lm(Anizotropia ~ GFaktor, data = deletanti)
+summary(deletanti_fit)
+plot(deletanti_fit)
+```
+
+
+##Medziskupinové porovnanie
+
+```{r}
+ggplot(data = anizotropie) +
+  geom_boxplot(mapping = aes(x = Skupina, y = Anizotropia, color = Skupina)) +
+  geom_jitter(mapping = aes(x = Skupina, y = Anizotropia, color = Skupina))
+```
+
+Z grafu sa zdá, ¾e ak je nejaký rozdiel medzi skupinami, vÏaka vysokej variabilite ho aj tak nie je veµmi vidie». Pozrime sa na to, èo nám povie permutaèný test na overenie nezávislosti skupín. 
+```{r}
+library(coin)
+independence_test(Anizotropia ~ Skupina, data = anizotropie)
+```
+
+Rozdiel medzi skupinami
+```{r}
+roz <- diff(by(anizotropie$Anizotropia, anizotropie$Skupina, mean))
+var_kontrola <- var(kontrola$Anizotropia)
+var_deletanti <- var(deletanti$Anizotropia)
+SE <- sqrt(var_kontrola/9 +var_delentanti/9)
+roz
+SE
+```
+
